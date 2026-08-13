@@ -1,1 +1,32 @@
+name: PChome Price Monitor
+
+on:
+  schedule:
+    - cron: '13 21 * * *'  # 台灣時間 05:13 (UTC 21:13)
+    - cron: '27 03 * * *'  # 台灣時間 11:27 (UTC 03:27)
+    - cron: '42 11 * * *'  # 台灣時間 19:42 (UTC 11:42)
+  workflow_dispatch:       
+
+jobs:
+  monitor:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests
+
+      - name: Run price monitor
+        env:
+          LINE_ACCESS_TOKEN: ${{ secrets.LINE_ACCESS_TOKEN }}
+          MY_USER_ID: ${{ secrets.MY_USER_ID }}
+        run: python monitor.py
 
