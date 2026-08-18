@@ -1,38 +1,52 @@
-import os
-import sys
+import time
 import requests
 import json
-
-os.chdir(os.path.dirname(os.path.abspath(__file__)))
-PRODUCT_URL = "https://24h.pchome.com.tw/prod/DYAJ01-1900J84BU"
-TARGET_PRICE = 33000
+from DrissionPage import ChromiumPage
 
 LINE_ACCESS_TOKEN = os.environ.get("LINE_ACCESS_TOKEN")
 MY_USER_ID = os.environ.get("MY_USER_ID")
-
+PRODUCT_URL = "https://24h.pchome.com.tw/prod/DYAJ01-1900J84BU" 
+TARGET_PRICE = 33800                                            
 
 def get_current_price():
+    print("🌐 正在啟動真實瀏覽器核心，模擬真人載入網頁...")
+    page = ChromiumPage()
+    
     try:
-        prod_id = PRODUCT_URL.split("prod/")[-1].split("?")[0]
-        api_url = 'https://ecapi.pchome.com.tw/ecshop/prodapi/v2/prod/button&id=' + prod_id
+        page.get(PRODUCT_URL)
         
-        headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-            "Origin": "https://pchome.com.tw",
-            "Referer": "https://pchome.com.tw/"
-        }        
-        response = requests.get(api_url, headers=headers, timeout=10)
-        data = response.json()
+        print("⏳ 等待網頁元素與價格載入...")
+        time.sleep(3)
         
+        elements = page.eles('xpath://span|//h2|//div')
+        
+        possible_prices = []
+        for ele in elements:
+            try:
+                text = ele.text.strip()
+                if '$' in text or any(char.isdigit() for char in text):
+                    import re
+                    nums = ''.join(re.findall(r'\d+', text))
+                    if nums:
+                        val = int(nums)
+                        if 20000 <= val <= 60000:
+                            possible_prices.append(val)
+            except Exception:
+                continue
 
-        prod_data = data[0] if isinstance(data, list) else data.get(prod_id, {})
-        current_price = prod_data.get("Price", {}).get("Low") or prod_data.get("Price", {}).get("P")
-        
-        return int(current_price)
-    except Exception as e:
-        print(f"❌ 嘗試解析商品編號或售價時發生錯誤：{e}")
+        if possible_prices:
+            return possible_prices[0]
+            
+        print("❌ 瀏覽器畫面上找不到符合價格範圍的數字")
         return None
 
+        
+    except Exception as e:
+        print(f"❌ 瀏覽器自動化操作時發生錯誤: {e}")
+        return None
+        
+    finally:
+        page.quit()
 
 def send_line_message(text_content):
     line_url = "https://api.line.me/v2/bot/message/push"
@@ -44,33 +58,29 @@ def send_line_message(text_content):
         "to": MY_USER_ID,
         "messages": [{"type": "text", "text": text_content}]
     }
-    response = requests.post(line_url, headers=headers, json=payload)
-
-
-    print(f"📡 LINE 伺服器回傳狀態：{response.status_code} - {response.text}")
-    print("  LINE 特價訊息已成功投遞至您的手機！")
-    
-    return response.status_code    
-
-def main():
-    print("🚀 2026 電商特價監控爬蟲正式啟動...")
-    print(f"🔍 正在巡邏目標商品：iPhone 17 (512G)")
-    
-    price = get_current_price()
-    
-    if price is not None:
-        print(f"📊 監控回報：目前 PChome 網路即時售價為 {price} 元")
-        print(f"🎯 您的目標便宜價設定為：{TARGET_PRICE} 元")
-        
-        if price <= TARGET_PRICE:
-            print("🔥 發現符合期望特價！正在發送 LINE 機器人通知...")
-            msg = f"🛒 【特價警報】您監控的商品降價啦！\n📱 商品：Apple 蘋果 iPhone 17 (512G)\n💰 目前即時售價：{price} 元\n🔗 商品傳送門：{PRODUCT_URL}"
-            send_line_message(msg)
-            print("✅ LINE 特價訊息已成功投遞至您的手機！")
+    try:
+        response = requests.post(line_url, headers=headers, json=payload)
+        if response.status_code == 200:
+            print("🔔 LINE 特價通報發送成功！")
         else:
-            print("⏳ 目前價格還太貴，持續背景巡邏中，不發送通知打擾。")
+            print(f"❌ LINE 發送失敗，錯誤碼: {response.status_code}")
+    except Exception as e:
+        print(f"❌ 發送 LINE 訊息時發生異常: {e}")
 
 
 if __name__ == "__main__":
-    main()
-
+    print("🚀 2026 電商特價監控爬蟲 (瀏覽器不死版) 正式啟動...")
+    print(f"🔍 正在巡邏目標商品：iPhone 17 (512G)")
+    
+    current_price = get_current_price()
+    
+    if current_price:
+        print(f"💰 成功抓取！目前網路最新售價為：${current_price} 元")
+        
+        if current_price <= TARGET_PRICE:
+            msg = f"🎉【降價通報】\n商品：iPhone 17 (512G)\n目標價：${TARGET_PRICE}\n目前特價只要：${current_price} 元！\n趕快衝啊！網址：{PRODUCT_URL}"
+            send_line_message(msg)
+        else:
+            print(f"📊 目前價格 ${current_price} 尚未低於目標價 ${TARGET_PRICE}，繼續監控。")
+    else:
+        print("❌ 本次巡邏失敗，未能取得價格。")
