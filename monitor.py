@@ -1,22 +1,32 @@
 import time
 import requests
 import json
-from DrissionPage import ChromiumPage
+import os
+from DrissionPage import ChromiumPage, ChromiumOptions 
+
+
 
 LINE_ACCESS_TOKEN = os.environ.get("LINE_ACCESS_TOKEN")
 MY_USER_ID = os.environ.get("MY_USER_ID")
-PRODUCT_URL = "https://24h.pchome.com.tw/prod/DYAJ01-1900J84BU" 
-TARGET_PRICE = 33800                                            
+PRODUCT_URL = "https://24h.pchome.com.tw/prod/DYAJ01-1900J84BU"  
+TARGET_PRICE = 33800  
 
 def get_current_price():
     print("🌐 正在啟動真實瀏覽器核心，模擬真人載入網頁...")
-    page = ChromiumPage()
+    co = ChromiumOptions()
+    co.headless(True)                       
+    co.set_argument('--no-sandbox')         
+    co.set_argument('--disable-gpu')       
+    co.set_argument('--disable-dev-shm-usage') 
+    
+    page = ChromiumPage(co)
     
     try:
+        print("🌐 正在模擬真人載入網頁...")
         page.get(PRODUCT_URL)
         
         print("⏳ 等待網頁元素與價格載入...")
-        time.sleep(3)
+        time.sleep(5)
         
         elements = page.eles('xpath://span|//h2|//div')
         
@@ -66,7 +76,6 @@ def send_line_message(text_content):
             print(f"❌ LINE 發送失敗，錯誤碼: {response.status_code}")
     except Exception as e:
         print(f"❌ 發送 LINE 訊息時發生異常: {e}")
-
 
 if __name__ == "__main__":
     print("🚀 2026 電商特價監控爬蟲 (瀏覽器不死版) 正式啟動...")
